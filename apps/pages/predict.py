@@ -15,30 +15,31 @@ from sklearn.metrics.pairwise import cosine_similarity
 from typing import Any
 import joblib
 
-class lemmaToken():
-    def __init__(self) -> None:
-        self.lemma = WordNetLemmatizer()
-        self.stopwords = set(stopwords.words('english'))
-    def getPos(self, tag:str):
-        if tag.startswith('J'):
-            return wordnet.ADJ
-        elif tag.startswith('V'):
-            return wordnet.VERB
-        elif tag.startswith('N'):
-            return wordnet.NOUN
-        elif tag.startswith('R'):
-            return wordnet.ADV
-        else:
-            return wordnet.NOUN
-    def __call__(self, doc) -> Any:
-        tokens = word_tokenize(doc)
-        wnt = nltk.pos_tag(tokens)
-        return [self.lemma.lemmatize(word, pos=self.getPos(tag)) for word, tag in wnt if word.lower() not in self.stopwords]
+# class lemmaToken():
+#     def __init__(self) -> None:
+#         self.lemma = WordNetLemmatizer()
+#         self.stopwords = set(stopwords.words('english'))
+#     def getPos(self, tag:str):
+#         if tag.startswith('J'):
+#             return wordnet.ADJ
+#         elif tag.startswith('V'):
+#             return wordnet.VERB
+#         elif tag.startswith('N'):
+#             return wordnet.NOUN
+#         elif tag.startswith('R'):
+#             return wordnet.ADV
+#         else:
+#             return wordnet.NOUN
+#     def __call__(self, doc) -> Any:
+#         tokens = word_tokenize(doc)
+#         wnt = nltk.pos_tag(tokens)
+#         return [self.lemma.lemmatize(word, pos=self.getPos(tag)) for word, tag in wnt if word.lower() not in self.stopwords]
     
 #load the trained tf-idf vectorizer
-vectorizer = joblib.load('apps/models/tfidf.pkl')
+vectorizer = joblib.load('apps/models/tfidf2.pkl')
 #load the pre-processed pandas dataframe
-master = pd.read_pickle('apps/data/processed/data.pkl')
+master = pd.read_pickle('apps/data/processed/data2.pkl')
+title2idx = pd.Series(master.index, index=master['title'])
 
 
 def queryTokenize(title:str) -> Any:
@@ -50,9 +51,9 @@ def queryTokenize(title:str) -> Any:
     Returns:
         Any: An sklearn tf-idf sparse matrix from title
     """
-    query = master[master['original_title'] == title]['oneLiner'].squeeze()
-    queryVec = vectorizer.transform([query])
-    return queryVec
+    query = vectorizer[title2idx[title]]
+    # queryVec = vectorizer.transform([query])
+    return query
 
 master = pd.read_pickle('apps/data/processed/data.pkl')
 
@@ -66,15 +67,19 @@ def predict(title:str) -> List:
         List: 5 most similar movies in order.
     """
     queryVec = queryTokenize(title)
-    res = []
-    matrix = np.array(master[['original_title', 'tfidf']])
-    for i in range(len(matrix)):
-        if matrix[i][0] == title:
-            continue
-        else:
-            res.append([matrix[i][0], cosine_similarity(queryVec, matrix[i][1])[0][0]])
-    sortedRes = sorted(res, key=lambda x: x[1], reverse=True)
-    return sortedRes[:5]
+    # res = []
+    # matrix = np.array(master[['original_title', 'tfidf']])
+    # for i in range(len(matrix)):
+    #     if matrix[i][0] == title:
+    #         continue
+    #     else:
+    #         res.append([matrix[i][0], cosine_similarity(queryVec, matrix[i][1])[0][0]])
+    # sortedRes = sorted(res, key=lambda x: x[1], reverse=True)
+    # return sortedRes[:5]
+    res = cosine_similarity(queryVec, vectorizer).flatten()
+    # resVal = res[(-res).argsort()][1:6]
+    res = title2idx[(-res).argsort()][1:6].index
+    return res
 
 
 allMovies = getAllMoviesTitle()
@@ -83,7 +88,7 @@ st.header('Movie recommendation system')
 st.subheader('Choose one of your favourite movie')
 textInput = st.selectbox('Select your movie', allMovies)
 if st.button('Find!'):
-    res = pd.DataFrame(predict(textInput), columns=['Title', 'Similarity score'])
+    res = pd.DataFrame(predict(textInput))
     with st.spinner('Wait for recommendation...'):
         time.sleep(.5)
         st.table(res)
